@@ -1,39 +1,34 @@
+import subprocess
+import sys
+
+try:
+    import firebase_admin
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "firebase-admin"])
+    import firebase_admin
+
 from flask import Flask, request, jsonify
-import firebase_admin
 from firebase_admin import credentials, db
 from datetime import datetime
 import os
+import json
 
 app = Flask(__name__)
 
-# ========== FIREBASE CONFIG ==========
-firebase_config = {
-    "apiKey": "AIzaSyCswByaGkpUUzIFkXfvVZuhD4Aokrbg-mg",
-    "authDomain": "tournament-78d9c.firebaseapp.com",
-    "databaseURL": "https://tournament-78d9c-default-rtdb.firebaseio.com",
-    "projectId": "tournament-78d9c",
-    "storageBucket": "tournament-78d9c.firebasestorage.app",
-    "messagingSenderId": "803296956926",
-    "appId": "1:803296956926:web:26f686438e7e775e1c30af",
-    "measurementId": "G-260M66TC2C"
-}
+# ========== FIREBASE INIT - SERVICE ACCOUNT JSON SE ==========
+# Service account JSON ko string mein store karo
+service_account_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
 
-# Initialize Firebase
-cred = credentials.Certificate({
-    "type": "service_account",
-    "project_id": "tournament-78d9c",
-    "private_key_id": "your-key-id",
-    "private_key": "your-private-key",
-    "client_email": "firebase-adminsdk@tournament-78d9c.iam.gserviceaccount.com",
-    "client_id": "your-client-id",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk%40tournament-78d9c.iam.gserviceaccount.com"
-})
+if service_account_json:
+    # Environment variable se load
+    service_account_dict = json.loads(service_account_json)
+    cred = credentials.Certificate(service_account_dict)
+else:
+    # Local file se load (development ke liye)
+    cred = credentials.Certificate('serviceAccountKey.json')
 
 firebase_admin.initialize_app(cred, {
-    'databaseURL': firebase_config['databaseURL']
+    'databaseURL': 'https://tournament-78d9c-default-rtdb.firebaseio.com'
 })
 
 # ========== API ROUTES ==========
@@ -42,59 +37,53 @@ firebase_admin.initialize_app(cred, {
 def home():
     return jsonify({
         "status": "online",
-        "api_version": "1.0",
+        "api": "SMS Admin API v1.0",
         "endpoints": {
-            "/send/<folder>": "POST - Send data",
-            "/showdata/<folder>": "GET - Show all data",
-            "/clear/<folder>": "DELETE - Clear folder data",
-            "/clear/<folder>/<item>": "DELETE - Clear specific item"
+            "/send/<folder>": "POST - Send SMS data",
+            "/showdata/<folder>": "GET - Get all data",
+            "/clear/<folder>": "DELETE - Clear folder"
         }
     })
 
-# ========== SEND DATA ==========
 @app.route('/send/<folder>', methods=['POST'])
 def send_data(folder):
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({"status": "error", "message": "No JSON data received"}), 400
         ref = db.reference(f'/{folder}')
         ref.push(data)
-        return jsonify({"status": "success", "message": f"Data sent to {folder}"}), 200
+        return jsonify({"status": "success", "message": f"Data saved in {folder}"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ========== SHOW DATA ==========
 @app.route('/showdata/<folder>', methods=['GET'])
 def show_data(folder):
     try:
         ref = db.reference(f'/{folder}')
         data = ref.get()
-        if data:
-            return jsonify({"status": "success", "data": data}), 200
-        return jsonify({"status": "success", "data": {}, "message": "No data found"}), 200
+        return jsonify({"status": "success", "data": data if data else {}}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ========== CLEAR ALL DATA IN FOLDER ==========
 @app.route('/clear/<folder>', methods=['DELETE'])
 def clear_folder(folder):
     try:
         ref = db.reference(f'/{folder}')
         ref.delete()
-        return jsonify({"status": "success", "message": f"Folder {folder} cleared"}), 200
+        return jsonify({"status": "success", "message": f"Folder {folder} deleted"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ========== CLEAR SPECIFIC ITEM ==========
 @app.route('/clear/<folder>/<item>', methods=['DELETE'])
 def clear_item(folder, item):
     try:
         ref = db.reference(f'/{folder}/{item}')
         ref.delete()
-        return jsonify({"status": "success", "message": f"Item {item} deleted from {folder}"}), 200
+        return jsonify({"status": "success", "message": f"Item {item} deleted"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ========== HEALTH CHECK ==========
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "healthy", "time": str(datetime.now())}), 200
