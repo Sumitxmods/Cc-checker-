@@ -1,40 +1,37 @@
 #!/usr/bin/env python3
 """
-🔐 FF JWT TOKEN GENERATOR - RENDER WEB SERVICE
+FF JWT TOKEN GENERATOR - RENDER WEB SERVICE
+Simple HTTP Server + Telegram Bot
 """
 
 import os
+import json
 import telebot
 from telebot import types
 import requests
 import urllib3
-from flask import Flask, request
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 
 urllib3.disable_warnings()
 
-# Flask Web Server
-app = Flask(__name__)
+# ========== SIMPLE HTTP SERVER ==========
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b"""
+        <html><head><title>FF JWT Bot</title>
+        <style>body{background:#000;color:#0f0;text-align:center;padding:50px;font-family:monospace}
+        h1{color:#0f0}.status{font-size:24px}</style></head>
+        <body><h1>FF JWT GEN</h1><p class='status'>ONLINE</p></body></html>
+        """)
+    
+    def log_message(self, format, *args):
+        pass
 
-@app.route('/')
-def home():
-    return """
-    <html>
-    <head><title>FF JWT Generator</title>
-    <style>
-        body { background: #0a0a0a; color: #fff; font-family: Arial; text-align: center; padding: 50px; }
-        h1 { color: #00ff88; }
-        .status { color: #00ff88; font-size: 24px; }
-    </style></head>
-    <body>
-        <h1>🔥 FF JWT TOKEN GENERATOR 🔥</h1>
-        <p class="status">✅ Bot Running!</p>
-        <p>Use Telegram Bot: @YourBot</p>
-    </body>
-    </html>
-    """
-
-# BOT
+# ========== BOT ==========
 BOT_TOKEN = "8669711044:AAEJqfiT1aaTVcZy2VF7JgW6HhoHtZtH_Xc"
 ADMIN_ID = 769051183
 HEX_KEY = bytes.fromhex("32656534343831396539623435393838343531343130363762323831363231383734643064356437616639643866376530306331653534373135623764316533")
@@ -91,11 +88,11 @@ def start_cmd(message):
     name = message.from_user.first_name or "User"
     
     if uid == ADMIN_ID:
-        txt = f"{E['crown']}╔══════════════════════╗\n║   {E['diamond']} ᴀᴅᴍɪɴ ᴘᴀɴᴇʟ {E['diamond']}   ║\n╚══════════════════════╝\n\n{E['star']} Welcome Admin {name}!\n\nSend <code>UID:Password</code>\n\n{INFO_TEXT}"
+        txt = f"{E['crown']}══════════════════\n   {E['diamond']} ᴀᴅᴍɪɴ ᴘᴀɴᴇʟ {E['diamond']}\n══════════════════\n\n{E['star']} Welcome {name}!\nSend UID:Password\n\n{INFO_TEXT}"
         bot.send_message(uid, txt, parse_mode="HTML", reply_markup=community_buttons())
         return
     
-    txt = f"{E['fire']}╔══════════════════════╗\n║   {E['crown']} ғғ ᴊᴡᴛ ɢᴇɴ {E['crown']}   ║\n╚══════════════════════╝\n\n{E['rocket']} Welcome {name}!\n\n{E['lock']} Send <code>UID:Password</code>\n\n{E['star']} Example: <code>6267873771:Test123</code>\n\n{INFO_TEXT}"
+    txt = f"{E['fire']}══════════════════\n   {E['crown']} ғғ ᴊᴡᴛ ɢᴇɴ {E['crown']}\n══════════════════\n\n{E['rocket']} Welcome {name}!\n\n{E['lock']} Send: UID:Password\n{E['star']} Ex: 6267873771:Test123\n\n{INFO_TEXT}"
     bot.send_message(uid, txt, parse_mode="HTML", reply_markup=community_buttons())
 
 @bot.message_handler(func=lambda m: m.text and ":" in m.text)
@@ -108,20 +105,20 @@ def handle_uid_pass(message):
     if not uid_input.isdigit() or not password:
         return
     
-    load = bot.reply_to(message, f"{E['load']} <i>Generating...</i>", parse_mode="HTML")
+    load = bot.reply_to(message, f"{E['load']} Generating...", parse_mode="HTML")
     success, result, expires = get_jwt(uid_input, password)
     
     if success:
         hours = expires // 3600
         jwt = result
-        txt = f"{E['check']}╔══════════════════════╗\n║   {E['crown']} ᴊᴡᴛ ʀᴇᴀᴅʏ {E['crown']}   ║\n╚══════════════════════╝\n\n{E['id']} UID: <code>{uid_input}</code>\n{E['pass']} Pass: <code>{password[:40]}</code>\n\n{E['ticket']} JWT: <code>{jwt[:80]}...</code>\n\n{E['time']} Expires: {hours}h\n{E['bolt']} Status: ACTIVE\n\n{E['lock']} Full token below ↓"
+        txt = f"{E['check']}══════════════════\n   {E['crown']} ᴊᴡᴛ ʀᴇᴀᴅʏ {E['crown']}\n══════════════════\n\n{E['id']} UID: {uid_input}\n{E['pass']} Pass: {password[:40]}\n\n{E['ticket']} JWT: {jwt[:80]}...\n\n{E['time']} Expires: {hours}h\n{E['bolt']} Status: ACTIVE"
         
         markup = types.InlineKeyboardMarkup(row_width=2)
         markup.add(types.InlineKeyboardButton(f"{E['key']} ɴᴇᴡ", callback_data="new_gen"), types.InlineKeyboardButton(f"{E['msg']} sʜᴀʀᴇ", callback_data="share"))
         bot.edit_message_text(txt, uid, load.message_id, parse_mode="HTML", reply_markup=markup)
-        bot.send_message(uid, f"{E['ticket']} <b>Full JWT:</b>\n\n<code>{jwt}</code>", parse_mode="HTML")
+        bot.send_message(uid, f"{E['ticket']} Full JWT:\n\n{jwt}", parse_mode="HTML")
     else:
-        txt = f"{E['cross']}╔══════════════════════╗\n║   {E['cross']} ғᴀɪʟᴇᴅ {E['cross']}   ║\n╚══════════════════════╝\n\n{E['cross']} Error: <code>{result}</code>\n\n{E['star']} Check UID/Password"
+        txt = f"{E['cross']}══════════════════\n   {E['cross']} ғᴀɪʟᴇᴅ {E['cross']}\n══════════════════\n\nError: {result}\n\nCheck UID/Password"
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton(f"{E['key']} ᴛʀʏ ᴀɢᴀɪɴ", callback_data="new_gen"))
         bot.edit_message_text(txt, uid, load.message_id, parse_mode="HTML", reply_markup=markup)
@@ -129,18 +126,21 @@ def handle_uid_pass(message):
 @bot.callback_query_handler(func=lambda call: call.data == "new_gen")
 def new_gen(call):
     bot.answer_callback_query(call.id)
-    bot.send_message(call.from_user.id, f"{E['star']} Send <code>UID:Password</code>:", parse_mode="HTML")
+    bot.send_message(call.from_user.id, f"{E['star']} Send UID:Password:", parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data == "share")
 def share(call):
     bot.answer_callback_query(call.id, "✅ Share @CRACKAxxFATHER", show_alert=True)
 
+# ========== START ==========
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     
-    # Flask thread
-    Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
+    # HTTP Server thread
+    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    Thread(target=server.serve_forever, daemon=True).start()
+    print(f"✅ Web: http://0.0.0.0:{port}")
     
-    # Bot
+    # Telegram Bot
     bot.remove_webhook()
     bot.infinity_polling(skip_pending=True)
